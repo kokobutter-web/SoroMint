@@ -59,8 +59,14 @@ function validateEnv() {
     // Optional Configuration
     ADMIN_SECRET_KEY: envalid.str({
       default: "",
-      desc: "Optional admin secret key for server-side signing",
+      desc: "Optional secret key for admin bypass",
     }),
+  }, {
+    reporter: ({ errors, env }) => {
+      if (Object.keys(errors).length > 0) {
+        throw new Error("Validation Error: " + Object.keys(errors).join(", "));
+      }
+    }
   });
 
   logger.info("Environment variables validated successfully", {
@@ -94,9 +100,11 @@ function initEnv() {
       });
       console.error("\n❌ Environment Validation Error:");
       console.error(error.message);
-      console.error("\nPlease check your .env file and ensure all required variables are set.");
+      console.error(
+        "\nPlease check your .env file and ensure all required variables are set.",
+      );
       console.error("See docs/env-variables.md for more information.\n");
-      process.exit(1);
+      throw error;
     }
   }
   return validatedEnv;

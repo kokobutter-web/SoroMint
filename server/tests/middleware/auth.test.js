@@ -67,7 +67,8 @@ beforeAll(async () => {
   // Create test user
   testUser = new User({
     publicKey: TEST_PUBLIC_KEY,
-    username: 'testuser'
+    username: 'testuser',
+    role: 'admin'
   });
   await testUser.save();
 
@@ -90,7 +91,8 @@ afterEach(async () => {
   // Recreate test user
   testUser = new User({
     publicKey: TEST_PUBLIC_KEY,
-    username: 'testuser'
+    username: 'testuser',
+    role: 'admin'
   });
   await testUser.save();
 });
@@ -482,7 +484,7 @@ describe('Auth Middleware', () => {
   describe('authorize middleware', () => {
     it('should allow access if user has required role', async () => {
       const req = createMockRequest({
-        user: { publicKey: TEST_PUBLIC_KEY }
+        user: { publicKey: TEST_PUBLIC_KEY, role: 'user' }
       });
       const res = createMockResponse();
       const next = createMockNext();
@@ -495,7 +497,7 @@ describe('Auth Middleware', () => {
 
     it('should allow access if user has admin role', async () => {
       const req = createMockRequest({
-        user: { publicKey: TEST_PUBLIC_KEY }
+        user: { publicKey: TEST_PUBLIC_KEY, role: 'admin' }
       });
       const res = createMockResponse();
       const next = createMockNext();
@@ -522,7 +524,7 @@ describe('Auth Middleware', () => {
 
     it('should work with multiple roles', async () => {
       const req = createMockRequest({
-        user: { publicKey: TEST_PUBLIC_KEY }
+        user: { publicKey: TEST_PUBLIC_KEY, role: 'moderator' }
       });
       const res = createMockResponse();
       const next = createMockNext();

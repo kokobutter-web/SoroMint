@@ -212,6 +212,7 @@ describe("Token Routes", () => {
         page: 1,
         totalPages: 1,
         limit: 20,
+        search: null,
       });
     });
 
@@ -362,7 +363,7 @@ describe("Token Routes", () => {
       expect(response.status).toBe(200);
       expect(response.body.data.length).toBe(4);
       expect(response.body.metadata.totalCount).toBe(4);
-      expect(response.body.metadata.search).toBeUndefined();
+      expect(response.body.metadata.search).toBeNull();
     });
 
     it("should return all tokens when search parameter is not provided", async () => {

@@ -52,15 +52,17 @@ app.use(httpLoggerMiddleware);
 // Set up API Documentation
 setupSwagger(app);
 
-// Database Connection
-mongoose
-  .connect(env.MONGO_URI)
-  .then(() => {
-    logDatabaseConnection(true);
-  })
-  .catch((err) => {
-    logDatabaseConnection(false, err);
-  });
+if (process.env.NODE_ENV !== 'test') {
+  // Database Connection
+  mongoose
+    .connect(env.MONGO_URI)
+    .then(() => {
+      logDatabaseConnection(true);
+    })
+    .catch((err) => {
+      logDatabaseConnection(false, err);
+    });
+}
 
 // Routes
 app.use("/api", statusRoutes);
@@ -74,10 +76,14 @@ app.use(notFoundHandler);
 // Centralized error handling middleware (must be last)
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  logStartupInfo(PORT, env.NETWORK_PASSPHRASE);
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(
-    `📚 API Documentation available at http://localhost:${PORT}/api-docs`,
-  );
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    logStartupInfo(PORT, env.NETWORK_PASSPHRASE);
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(
+      `📚 API Documentation available at http://localhost:${PORT}/api-docs`,
+    );
+  });
+}
+
+module.exports = app;
