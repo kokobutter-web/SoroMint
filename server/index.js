@@ -9,6 +9,8 @@ require("dotenv").config();
 const { initEnv, getEnv } = require("./config/env-config");
 initEnv();
 
+const { scheduleBackups } = require("./services/backup-service");
+
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -72,6 +74,7 @@ const startServer = async () => {
     logStartupInfo(env.PORT, env.NETWORK_PASSPHRASE);
     console.log(`Server running on http://localhost:${env.PORT}`);
     console.log(`API Documentation available at http://localhost:${env.PORT}/api-docs`);
+    scheduleBackups();
   });
 };
 
