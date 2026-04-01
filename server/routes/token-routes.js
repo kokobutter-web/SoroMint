@@ -274,6 +274,12 @@ const createTokenRouter = ({ deployRateLimiter = tokenDeploymentRateLimiter } = 
           res.json({ success: true, data: updatedToken });
         })
       );
+      notifyUser(userId, 'deploymentFailed', () => buildDeploymentFailedContent(name, error.message));
+
+      throw error;
+    }
+  }),
+  );
 
       return router;
     };
