@@ -11,6 +11,7 @@ export default {
         stellar: {
           blue: '#146EF5',
           dark: '#0e141b',
+          light: '#f8fafc',
         }
       }
     },
