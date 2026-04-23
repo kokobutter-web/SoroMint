@@ -36,6 +36,7 @@ const tokenRoutes = require("./routes/token-routes");
 const webhookRoutes = require("./routes/webhook-routes");
 const analyticsRoutes = require("./routes/analytics-routes");
 const notificationRoutes = require("./routes/notification-routes");
+const multiSigRoutes = require("./routes/multisig-routes");
 
 const createApp = ({ authRouter = authRoutes, tokenRouter = tokenRoutes } = {}) => {
   const app = express();
@@ -58,6 +59,7 @@ const createApp = ({ authRouter = authRoutes, tokenRouter = tokenRoutes } = {}) 
   app.use("/api", notificationRoutes);
   app.use("/api/auth", authRouter);
   app.use("/api", webhookRoutes);
+  app.use("/api/multisig", multiSigRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
