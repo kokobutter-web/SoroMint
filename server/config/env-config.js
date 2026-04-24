@@ -5,13 +5,13 @@
  * @dev Prevents server from starting if required environment variables are missing
  */
 
-require("dotenv").config();
-const envalid = require("envalid");
-const { logger } = require("../utils/logger");
+require('dotenv').config();
+const envalid = require('envalid');
+const { logger } = require('../utils/logger');
 const {
   getDefaultCorsAllowedOrigins,
   parseAllowedOrigins,
-} = require("./cors-origins");
+} = require('./cors-origins');
 
 /**
  * @notice Validates all required environment variables
@@ -122,13 +122,190 @@ function validateEnv() {
       default: 3600,
       desc: "Cache TTL (Time-To-Live) in seconds for token metadata (default: 1 hour)",
     }),
+    // AWS S3 Backup Configuration
+    AWS_REGION: envalid.str({
+      default: "us-east-1",
+      desc: "AWS region for S3 backup storage",
+      example: "us-east-1",
+    }),
+    AWS_ACCESS_KEY_ID: envalid.str({
+      default: "",
+      desc: "AWS access key ID for S3 backup storage",
+    }),
+    AWS_SECRET_ACCESS_KEY: envalid.str({
+      default: "",
+      desc: "AWS secret access key for S3 backup storage",
+    }),
+    AWS_S3_BACKUP_BUCKET: envalid.str({
+      default: "",
+      desc: "S3 bucket name for storing encrypted backups",
+      example: "soromint-backups",
+    }),
+    BACKUP_ENCRYPTION_PASSWORD: envalid.str({
+      default: "",
+      desc: "Password for encrypting backups (AES-256-GCM). If not set, a random password will be generated",
+    }),
+    BACKUP_CRON_SCHEDULE: envalid.str({
+      default: "0 2 * * *",
+      desc: "Cron schedule for automated backups (default: daily at 02:00 UTC)",
+      example: "0 2 * * *",
+    }),
+    RECOVERY_TEST_CRON_SCHEDULE: envalid.str({
+      default: "0 3 * * *",
+      desc: "Cron schedule for automated recovery tests (default: daily at 03:00 UTC)",
+      example: "0 3 * * *",
+    }),
+    TEST_MONGO_URI: envalid.str({
+      default: "",
+      desc: "MongoDB URI for testing backup restoration (optional)",
+      example: "mongodb://localhost:27017/soromint_test",
+    }),
   }, {
     reporter: ({ errors, env }) => {
       if (Object.keys(errors).length > 0) {
         throw new Error("Validation Error: " + Object.keys(errors).join(", "));
       }
+  const cleanEnv = envalid.cleanEnv(
+    process.env,
+    {
+      PORT: envalid.port({
+        default: 5000,
+        desc: 'Port number for the Express server',
+      }),
+      NODE_ENV: envalid.str({
+        default: 'development',
+        choices: ['development', 'production', 'test'],
+        desc: 'Application environment mode',
+      }),
+      MONGO_URI: envalid.url({
+        desc: 'MongoDB connection URI',
+        example: 'mongodb://localhost:27017/soromint',
+      }),
+      JWT_SECRET: envalid.str({
+        desc: 'Secret key for JWT token signing',
+        example: 'your-super-secret-jwt-key',
+      }),
+      JWT_EXPIRES_IN: envalid.str({
+        default: '24h',
+        desc: 'JWT token expiration time',
+      }),
+      SOROBAN_RPC_URLS: envalid.str({
+        desc: 'Comma-separated list of Soroban RPC endpoint URLs',
+        example:
+          'https://soroban-testnet.stellar.org,https://another-rpc.stellar.org',
+        default: '',
+      }),
+      SOROBAN_RPC_URL: envalid.url({
+        desc: 'Primary Soroban RPC endpoint URL (deprecated in favor of SOROBAN_RPC_URLS)',
+        example: 'https://soroban-testnet.stellar.org',
+        default: 'https://soroban-testnet.stellar.org',
+      }),
+      HORIZON_URL: envalid.url({
+        desc: 'Horizon API endpoint URL for fee stats and network data',
+        example: 'https://horizon-testnet.stellar.org',
+        default: 'https://horizon-testnet.stellar.org',
+      }),
+      NETWORK_PASSPHRASE: envalid.str({
+        default: 'Test SDF Network ; September 2015',
+        desc: 'Stellar network passphrase',
+      }),
+      ADMIN_SECRET_KEY: envalid.str({
+        default: '',
+        desc: 'Optional secret key for admin bypass',
+      }),
+      SERVER_SIGNING_SECRET: envalid.str({
+        default: '',
+        desc:
+          'Stellar secret key (S-address) used by the server to sign SEP-10 challenge transactions. ' +
+          'Generate one with: node -e "const {Keypair}=require(\'@stellar/stellar-sdk\');console.log(Keypair.random().secret())"',
+        example:
+          'SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+      }),
+      PLATFORM_SECRET_KEY: envalid.str({
+        default: '',
+        desc:
+          'Stellar secret key (S-address) used to sign fee-bump sponsorship transactions on behalf of the platform',
+        example:
+          'SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+      }),
+      SPONSORSHIP_ENABLED: envalid.bool({
+        default: false,
+        desc: 'Enable fee sponsorship (gasless) transaction routes and execution',
+      }),
+      MAX_SPONSORSHIP_FEE_STROOPS: envalid.num({
+        default: 1000000,
+        desc: 'Maximum fee in stroops the platform will sponsor for a single transaction',
+      }),
+      SENTRY_DSN: envalid.str({
+        default: '',
+        desc: 'Sentry DSN for error tracking (leave empty to disable)',
+        example: 'https://<key>@o0.ingest.sentry.io/<project>',
+      }),
+      LOGIN_RATE_LIMIT_WINDOW_MS: envalid.num({
+        default: 15 * 60 * 1000,
+        desc: 'Login rate limit window in milliseconds',
+      }),
+      LOGIN_RATE_LIMIT_MAX_REQUESTS: envalid.num({
+        default: 5,
+        desc: 'Maximum login attempts per rate limit window',
+      }),
+      TOKEN_DEPLOY_RATE_LIMIT_WINDOW_MS: envalid.num({
+        default: 60 * 60 * 1000,
+        desc: 'Token deployment rate limit window in milliseconds',
+      }),
+      TOKEN_DEPLOY_RATE_LIMIT_MAX_REQUESTS: envalid.num({
+        default: 10,
+        desc: 'Maximum token deployments per rate limit window',
+      }),
+      CORS_ALLOWED_ORIGINS: envalid.str({
+        default: getDefaultCorsAllowedOrigins(),
+        desc: 'Comma-separated list of allowed frontend origins for cross-origin requests',
+        example: 'https://app.example.com,https://admin.example.com',
+      }),
+      METRICS_INTERVAL_MS: envalid.num({
+        default: 30000,
+        desc: 'Resource metrics sampling interval in milliseconds',
+      }),
+      ALERT_THRESHOLD_CPU: envalid.num({
+        default: 85,
+        desc: 'CPU usage % that triggers an alert (0-100)',
+      }),
+      ALERT_THRESHOLD_MEMORY: envalid.num({
+        default: 85,
+        desc: 'Memory usage % that triggers an alert (0-100)',
+      }),
+      ALERT_THRESHOLD_DISK: envalid.num({
+        default: 90,
+        desc: 'Disk usage % that triggers an alert (0-100)',
+      }),
+      REDIS_URL: envalid.str({
+        default: 'redis://localhost:6379',
+        desc: 'Redis connection URL for caching',
+        example: 'redis://localhost:6379',
+      }),
+      REDIS_PASSWORD: envalid.str({
+        default: '',
+        desc: 'Redis password (optional)',
+      }),
+      REDIS_DB: envalid.num({
+        default: 0,
+        desc: 'Redis database number',
+      }),
+      CACHE_TTL_METADATA: envalid.num({
+        default: 3600,
+        desc: 'Cache TTL (Time-To-Live) in seconds for token metadata (default: 1 hour)',
+      }),
+    },
+    {
+      reporter: ({ errors, env }) => {
+        if (Object.keys(errors).length > 0) {
+          throw new Error(
+            'Validation Error: ' + Object.keys(errors).join(', ')
+          );
+        }
+      },
     }
-  });
+  );
 
   let corsAllowedOrigins;
   try {
@@ -142,13 +319,14 @@ function validateEnv() {
     CORS_ALLOWED_ORIGINS: corsAllowedOrigins,
   });
 
-  logger.info("Environment variables validated successfully", {
+  logger.info('Environment variables validated successfully', {
     nodeEnv: validatedConfig.NODE_ENV,
     port: validatedConfig.PORT,
     mongoUri: validatedConfig.MONGO_URI
-      ? validatedConfig.MONGO_URI.replace(/\/\/.*@/, "//***@")
+      ? validatedConfig.MONGO_URI.replace(/\/\/.*@/, '//***@')
       : undefined,
-    sorobanRpcUrls: validatedConfig.SOROBAN_RPC_URLS || validatedConfig.SOROBAN_RPC_URL,
+    sorobanRpcUrls:
+      validatedConfig.SOROBAN_RPC_URLS || validatedConfig.SOROBAN_RPC_URL,
     corsAllowedOrigins: validatedConfig.CORS_ALLOWED_ORIGINS,
   });
 
@@ -162,13 +340,13 @@ function initEnv() {
     try {
       validatedEnv = validateEnv();
     } catch (error) {
-      logger.error("Environment validation failed", {
+      logger.error('Environment validation failed', {
         error: error.message,
       });
-      console.error("\n❌ Environment Validation Error:");
+      console.error('\n❌ Environment Validation Error:');
       console.error(error.message);
       console.error(
-        "\nPlease check your .env file and ensure all required variables are set.",
+        '\nPlease check your .env file and ensure all required variables are set.'
       );
       throw error;
     }
