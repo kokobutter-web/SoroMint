@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   LayoutDashboard,
   BookOpenText,
+  Vote,
 } from "lucide-react";
 
 // UI Components & Stores
@@ -18,83 +19,23 @@ import ErrorBoundary from "./components/error-boundary";
 import { AppCrashPage, SectionCrashCard } from "./components/error-fallbacks";
 import { SkeletonList, SkeletonTokenForm } from "./components/Skeleton";
 import { useWalletStore, useTokenStore, useUIStore } from "./store";
-import { isFreighterInstalled } from "./services/authService";
 import ThemeToggle from "./components/ThemeToggle";
 
 const DeveloperHub = lazy(() => import("./components/developer-hub"));
+const VotingDashboard = lazy(() => import("./components/VotingDashboard"));
 
 const API_BASE = "http://localhost:5000/api";
 
 const views = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "governance", label: "Governance", icon: Vote },
   { id: "developer-hub", label: "Developer Hub", icon: BookOpenText },
 ];
 
 /**
  * AppHeader Component
  */
-/**
- * WalletButton — smart connect/disconnect button with loading + Freighter awareness.
- */
-function WalletButton({ address, authLoading, onConnect, onDisconnect }) {
-  const { t } = useTranslation();
-
-  if (authLoading) {
-    return (
-      <button
-        disabled
-        className="btn-primary flex items-center gap-2 opacity-75 cursor-not-allowed"
-      >
-        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8v8H4z"
-          />
-        </svg>
-        {t("app.authenticating") || "Authenticating…"}
-      </button>
-    );
-  }
-
-  if (address) {
-    return (
-      <button
-        onClick={onDisconnect}
-        className="btn-primary flex items-center gap-2"
-      >
-        <Wallet size={18} />
-        <span className="font-mono text-sm">
-          {address.substring(0, 6)}…{address.slice(-4)}
-        </span>
-      </button>
-    );
-  }
-
-  return (
-    <button onClick={onConnect} className="btn-primary flex items-center gap-2">
-      <Wallet size={18} />
-      {t("app.connectWallet") || "Connect Wallet"}
-    </button>
-  );
-}
-
-function AppHeader({
-  address,
-  authLoading,
-  onConnect,
-  onDisconnect,
-  activeView,
-  setView,
-}) {
+function AppHeader({ address, onConnect, onDisconnect, activeView, setView }) {
   const { t } = useTranslation();
 
   return (
@@ -137,12 +78,15 @@ function AppHeader({
 
         <div className="flex items-center gap-3">
           <ThemeToggle />
-          <WalletButton
-            address={address}
-            authLoading={authLoading}
-            onConnect={onConnect}
-            onDisconnect={onDisconnect}
-          />
+          <button
+            onClick={address ? onDisconnect : onConnect}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Wallet size={18} />
+            {address
+              ? `${address.substring(0, 6)}...${address.slice(-4)}`
+              : t("app.connectWallet") || "Connect Wallet"}
+          </button>
         </div>
       </div>
     </header>
@@ -346,19 +290,10 @@ function App() {
   const [activeView, setActiveView] = useState("dashboard");
 
   // Zustand Hooks
-  const {
-    address,
-    connectWallet: storeConnectWallet,
-    disconnectWallet,
-    authLoading,
-    authError,
-    clearAuthError,
-    isAuthenticated,
-  } = useWalletStore();
+  const { address, setWallet, disconnectWallet } = useWalletStore();
   const { tokens, addToken, isLoading, fetchTokens } = useTokenStore();
   const { initTheme } = useUIStore();
 
-  // Initialise theme and fetch tokens whenever the connected address changes.
   useEffect(() => {
     initTheme();
     if (address) {
@@ -366,69 +301,53 @@ function App() {
     }
   }, [address, fetchTokens, initTheme]);
 
-  // Surface auth errors as toast notifications.
-  useEffect(() => {
-    if (authError) {
-      toast.error(authError, { onClose: clearAuthError });
-    }
-  }, [authError, clearAuthError]);
-
-  /**
-   * connectWallet — runs the full SEP-10 Freighter flow.
-   *
-   * If Freighter is not installed we show a helpful link instead of
-   * attempting the flow (which would throw a confusing error).
-   */
   const connectWallet = async () => {
-    try {
-      const installed = await isFreighterInstalled();
-      if (!installed) {
-        toast.warn(
-          <span>
-            Freighter wallet is not installed.{" "}
-            <a
-              href="https://www.freighter.app/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline font-semibold"
-            >
-              Install it here
-            </a>{" "}
-            and refresh the page.
-          </span>,
-          { autoClose: 8000 },
-        );
-        return;
-      }
-
-      await storeConnectWallet();
-      toast.success(
-        t("app.walletConnected") || "Wallet connected & authenticated",
-      );
-    } catch (err) {
-      // Errors are already stored in authError and surfaced via the effect above.
-      // Only log non-user-initiated cancellations to avoid double-toasting.
-      if (
-        !err.message?.toLowerCase().includes("declined") &&
-        !err.message?.toLowerCase().includes("cancel")
-      ) {
-        console.error("[connectWallet]", err);
-      }
-    }
+    // Mock wallet connection for demo
+    const mockAddress =
+      "GB" +
+      Math.random().toString(36).substring(2, 10).toUpperCase() +
+      Math.random().toString(36).substring(2, 10).toUpperCase();
+    setWallet(mockAddress);
+    toast.success(t("app.walletConnected") || "Wallet connected");
   };
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
       <AppHeader
         address={address}
-        authLoading={authLoading}
         onConnect={connectWallet}
         onDisconnect={disconnectWallet}
         activeView={activeView}
         setView={setActiveView}
       />
 
-      {activeView === "developer-hub" ? (
+      {activeView === "governance" ? (
+        <Suspense
+          fallback={
+            <div className="glass-card flex min-h-[320px] items-center justify-center">
+              <div className="space-y-3 text-center">
+                <p className="text-sm uppercase tracking-[0.3em] text-stellar-blue">
+                  Governance
+                </p>
+                <p className="text-lg font-medium dark:text-white">
+                  Loading proposals…
+                </p>
+              </div>
+            </div>
+          }
+        >
+          <ErrorBoundary
+            fallbackRender={({ resetErrorBoundary }) => (
+              <SectionCrashCard
+                title="Governance Unavailable"
+                onRetry={resetErrorBoundary}
+              />
+            )}
+          >
+            <VotingDashboard address={address} authToken={null} />
+          </ErrorBoundary>
+        </Suspense>
+      ) : activeView === "developer-hub" ? (
         <Suspense
           fallback={
             <div className="glass-card flex min-h-[320px] items-center justify-center">
