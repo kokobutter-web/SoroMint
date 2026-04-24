@@ -40,6 +40,7 @@ const notificationRoutes = require("./routes/notification-routes");
 const backupRoutes = require("./routes/backup-routes");
 const multiSigRoutes = require("./routes/multisig-routes");
 const vaultRoutes = require("./routes/vault-routes");
+const sponsorshipRoutes = require("./routes/sponsorship-routes");
 
 const createApp = ({ authRouter = authRoutes, tokenRouter = tokenRoutes } = {}) => {
   const app = express();
@@ -65,6 +66,7 @@ const createApp = ({ authRouter = authRoutes, tokenRouter = tokenRoutes } = {}) 
   app.use("/api/backups", backupRoutes);
   app.use("/api/multisig", multiSigRoutes);
   app.use("/api/vault", vaultRoutes);
+  app.use("/api/sponsorship", sponsorshipRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

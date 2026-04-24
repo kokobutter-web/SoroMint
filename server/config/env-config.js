@@ -221,6 +221,21 @@ function validateEnv() {
         example:
           'SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
       }),
+      PLATFORM_SECRET_KEY: envalid.str({
+        default: '',
+        desc:
+          'Stellar secret key (S-address) used to sign fee-bump sponsorship transactions on behalf of the platform',
+        example:
+          'SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+      }),
+      SPONSORSHIP_ENABLED: envalid.bool({
+        default: false,
+        desc: 'Enable fee sponsorship (gasless) transaction routes and execution',
+      }),
+      MAX_SPONSORSHIP_FEE_STROOPS: envalid.num({
+        default: 1000000,
+        desc: 'Maximum fee in stroops the platform will sponsor for a single transaction',
+      }),
       SENTRY_DSN: envalid.str({
         default: '',
         desc: 'Sentry DSN for error tracking (leave empty to disable)',

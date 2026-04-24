@@ -95,6 +95,49 @@ const UserSchema = new mongoose.Schema({
     type: String,
     enum: ['user', 'admin'],
     default: 'user'
+  },
+  /**
+   * Whether the user has opted into sponsored transactions
+   */
+  sponsorshipEnabled: {
+    type: Boolean,
+    default: false,
+  },
+  /**
+   * Sponsorship approval lifecycle state
+   */
+  sponsorshipStatus: {
+    type: String,
+    enum: ['inactive', 'pending', 'approved', 'rejected', 'suspended'],
+    default: 'inactive',
+  },
+  /**
+   * Maximum lifetime sponsorship budget allocated to the user, in stroops
+   */
+  sponsorshipBudgetLimitStroops: {
+    type: Number,
+    default: 0,
+    min: [0, 'Sponsorship budget limit cannot be negative'],
+  },
+  /**
+   * Lifetime sponsored fee usage for the user, in stroops
+   */
+  sponsorshipBudgetUsedStroops: {
+    type: Number,
+    default: 0,
+    min: [0, 'Sponsorship budget used cannot be negative'],
+  },
+  /**
+   * Most recent time sponsorship was approved
+   */
+  sponsorshipApprovedAt: {
+    type: Date,
+  },
+  /**
+   * Most recent time a sponsored transaction was executed
+   */
+  sponsorshipLastSponsoredAt: {
+    type: Date,
   }
 }, {
   timestamps: true
