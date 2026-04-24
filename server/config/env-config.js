@@ -122,45 +122,175 @@ function validateEnv() {
       default: 3600,
       desc: "Cache TTL (Time-To-Live) in seconds for token metadata (default: 1 hour)",
     }),
-    PINATA_API_KEY: envalid.str({
+    // AWS S3 Backup Configuration
+    AWS_REGION: envalid.str({
+      default: "us-east-1",
+      desc: "AWS region for S3 backup storage",
+      example: "us-east-1",
+    }),
+    AWS_ACCESS_KEY_ID: envalid.str({
       default: "",
-      desc: "Pinata API key for IPFS pinning",
+      desc: "AWS access key ID for S3 backup storage",
     }),
-    PINATA_SECRET_API_KEY: envalid.str({
+    AWS_SECRET_ACCESS_KEY: envalid.str({
       default: "",
-      desc: "Pinata secret API key for IPFS pinning",
+      desc: "AWS secret access key for S3 backup storage",
     }),
-    GOOGLE_CLIENT_ID: envalid.str({
+    AWS_S3_BACKUP_BUCKET: envalid.str({
       default: "",
-      desc: "Google OAuth2 Client ID",
+      desc: "S3 bucket name for storing encrypted backups",
+      example: "soromint-backups",
     }),
-    GOOGLE_CLIENT_SECRET: envalid.str({
+    BACKUP_ENCRYPTION_PASSWORD: envalid.str({
       default: "",
-      desc: "Google OAuth2 Client Secret",
+      desc: "Password for encrypting backups (AES-256-GCM). If not set, a random password will be generated",
     }),
-    GITHUB_CLIENT_ID: envalid.str({
+    BACKUP_CRON_SCHEDULE: envalid.str({
+      default: "0 2 * * *",
+      desc: "Cron schedule for automated backups (default: daily at 02:00 UTC)",
+      example: "0 2 * * *",
+    }),
+    RECOVERY_TEST_CRON_SCHEDULE: envalid.str({
+      default: "0 3 * * *",
+      desc: "Cron schedule for automated recovery tests (default: daily at 03:00 UTC)",
+      example: "0 3 * * *",
+    }),
+    TEST_MONGO_URI: envalid.str({
       default: "",
-      desc: "GitHub OAuth2 Client ID",
-    }),
-    GITHUB_CLIENT_SECRET: envalid.str({
-      default: "",
-      desc: "GitHub OAuth2 Client Secret",
-    }),
-    SESSION_SECRET: envalid.str({
-      default: "keyboard-cat-soromint-default",
-      desc: "Secret for express-session",
-    }),
-    AUTH_CALLBACK_URL: envalid.str({
-      default: "http://localhost:5000",
-      desc: "Base URL for OAuth callbacks",
+      desc: "MongoDB URI for testing backup restoration (optional)",
+      example: "mongodb://localhost:27017/soromint_test",
     }),
   }, {
     reporter: ({ errors, env }) => {
       if (Object.keys(errors).length > 0) {
         throw new Error("Validation Error: " + Object.keys(errors).join(", "));
       }
+  const cleanEnv = envalid.cleanEnv(
+    process.env,
+    {
+      PORT: envalid.port({
+        default: 5000,
+        desc: 'Port number for the Express server',
+      }),
+      NODE_ENV: envalid.str({
+        default: 'development',
+        choices: ['development', 'production', 'test'],
+        desc: 'Application environment mode',
+      }),
+      MONGO_URI: envalid.url({
+        desc: 'MongoDB connection URI',
+        example: 'mongodb://localhost:27017/soromint',
+      }),
+      JWT_SECRET: envalid.str({
+        desc: 'Secret key for JWT token signing',
+        example: 'your-super-secret-jwt-key',
+      }),
+      JWT_EXPIRES_IN: envalid.str({
+        default: '24h',
+        desc: 'JWT token expiration time',
+      }),
+      SOROBAN_RPC_URLS: envalid.str({
+        desc: 'Comma-separated list of Soroban RPC endpoint URLs',
+        example:
+          'https://soroban-testnet.stellar.org,https://another-rpc.stellar.org',
+        default: '',
+      }),
+      SOROBAN_RPC_URL: envalid.url({
+        desc: 'Primary Soroban RPC endpoint URL (deprecated in favor of SOROBAN_RPC_URLS)',
+        example: 'https://soroban-testnet.stellar.org',
+        default: 'https://soroban-testnet.stellar.org',
+      }),
+      HORIZON_URL: envalid.url({
+        desc: 'Horizon API endpoint URL for fee stats and network data',
+        example: 'https://horizon-testnet.stellar.org',
+        default: 'https://horizon-testnet.stellar.org',
+      }),
+      NETWORK_PASSPHRASE: envalid.str({
+        default: 'Test SDF Network ; September 2015',
+        desc: 'Stellar network passphrase',
+      }),
+      ADMIN_SECRET_KEY: envalid.str({
+        default: '',
+        desc: 'Optional secret key for admin bypass',
+      }),
+      SERVER_SIGNING_SECRET: envalid.str({
+        default: '',
+        desc:
+          'Stellar secret key (S-address) used by the server to sign SEP-10 challenge transactions. ' +
+          'Generate one with: node -e "const {Keypair}=require(\'@stellar/stellar-sdk\');console.log(Keypair.random().secret())"',
+        example:
+          'SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+      }),
+      SENTRY_DSN: envalid.str({
+        default: '',
+        desc: 'Sentry DSN for error tracking (leave empty to disable)',
+        example: 'https://<key>@o0.ingest.sentry.io/<project>',
+      }),
+      LOGIN_RATE_LIMIT_WINDOW_MS: envalid.num({
+        default: 15 * 60 * 1000,
+        desc: 'Login rate limit window in milliseconds',
+      }),
+      LOGIN_RATE_LIMIT_MAX_REQUESTS: envalid.num({
+        default: 5,
+        desc: 'Maximum login attempts per rate limit window',
+      }),
+      TOKEN_DEPLOY_RATE_LIMIT_WINDOW_MS: envalid.num({
+        default: 60 * 60 * 1000,
+        desc: 'Token deployment rate limit window in milliseconds',
+      }),
+      TOKEN_DEPLOY_RATE_LIMIT_MAX_REQUESTS: envalid.num({
+        default: 10,
+        desc: 'Maximum token deployments per rate limit window',
+      }),
+      CORS_ALLOWED_ORIGINS: envalid.str({
+        default: getDefaultCorsAllowedOrigins(),
+        desc: 'Comma-separated list of allowed frontend origins for cross-origin requests',
+        example: 'https://app.example.com,https://admin.example.com',
+      }),
+      METRICS_INTERVAL_MS: envalid.num({
+        default: 30000,
+        desc: 'Resource metrics sampling interval in milliseconds',
+      }),
+      ALERT_THRESHOLD_CPU: envalid.num({
+        default: 85,
+        desc: 'CPU usage % that triggers an alert (0-100)',
+      }),
+      ALERT_THRESHOLD_MEMORY: envalid.num({
+        default: 85,
+        desc: 'Memory usage % that triggers an alert (0-100)',
+      }),
+      ALERT_THRESHOLD_DISK: envalid.num({
+        default: 90,
+        desc: 'Disk usage % that triggers an alert (0-100)',
+      }),
+      REDIS_URL: envalid.str({
+        default: 'redis://localhost:6379',
+        desc: 'Redis connection URL for caching',
+        example: 'redis://localhost:6379',
+      }),
+      REDIS_PASSWORD: envalid.str({
+        default: '',
+        desc: 'Redis password (optional)',
+      }),
+      REDIS_DB: envalid.num({
+        default: 0,
+        desc: 'Redis database number',
+      }),
+      CACHE_TTL_METADATA: envalid.num({
+        default: 3600,
+        desc: 'Cache TTL (Time-To-Live) in seconds for token metadata (default: 1 hour)',
+      }),
     },
-  });
+    {
+      reporter: ({ errors, env }) => {
+        if (Object.keys(errors).length > 0) {
+          throw new Error(
+            'Validation Error: ' + Object.keys(errors).join(', ')
+          );
+        }
+      },
+    }
+  );
 
   let corsAllowedOrigins;
   try {
