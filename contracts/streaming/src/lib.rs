@@ -758,4 +758,91 @@ mod test {
         });
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_self_destruct_with_multiple_streams() {
+        let e = Env::default();
+        e.mock_all_auths();
+        
+        let admin = Address::generate(&e);
+        let sender1 = Address::generate(&e);
+        let sender2 = Address::generate(&e);
+        let recipient1 = Address::generate(&e);
+        let recipient2 = Address::generate(&e);
+        
+        let (token_addr, token_client, token_admin) = create_token_contract(&e, &admin);
+        token_admin.mint(&sender1, &10000);
+        token_admin.mint(&sender2, &10000);
+        
+        let contract_id = e.register(StreamingPayments, ());
+        let client = StreamingPaymentsClient::new(&e, &contract_id);
+        client.initialize(&admin);
+        
+        e.ledger().set_sequence_number(100);
+        // Create two streams
+        let stream1 = client.create_stream(&sender1, &recipient1, &token_addr, &1000, &100, &200);
+        let stream2 = client.create_stream(&sender2, &recipient2, &token_addr, &2000, &100, &300);
+        
+        // Move to ledger 150
+        e.ledger().set_sequence_number(150);
+        
+        // Stream 1: 500 streamed, 500 unstreamed
+        // Stream 2: 1000 streamed, 1000 unstreamed
+        assert_eq!(client.balance_of(&stream1), 500);
+        assert_eq!(client.balance_of(&stream2), 1000);
+        
+        // Self-destruct
+        client.pause();
+        client.self_destruct();
+        
+        // Verify recipients got their streamed amounts
+        assert_eq!(token_client.balance(&recipient1), 500);
+        assert_eq!(token_client.balance(&recipient2), 1000);
+        
+        // Verify senders got their unstreamed refunds
+        assert_eq!(token_client.balance(&sender1), 10000 - 1000 + 500); // original - deposited + refund
+        assert_eq!(token_client.balance(&sender2), 10000 - 2000 + 1000); // original - deposited + refund
+    }
+
+    #[test]
+    fn test_self_destruct_fund_accounting() {
+        let e = Env::default();
+        e.mock_all_auths();
+        
+        let admin = Address::generate(&e);
+        let sender = Address::generate(&e);
+        let recipient = Address::generate(&e);
+        
+        let (token_addr, token_client, token_admin) = create_token_contract(&e, &admin);
+        token_admin.mint(&sender, &50000);
+        
+        let contract_id = e.register(StreamingPayments, ());
+        let client = StreamingPaymentsClient::new(&e, &contract_id);
+        client.initialize(&admin);
+        
+        e.ledger().set_sequence_number(100);
+        // Create stream: 10000 tokens over 100 ledgers (rate=100/ledger)
+        let stream_id = client.create_stream(&sender, &recipient, &token_addr, &10000, &100, &200);
+        
+        // Move to ledger 150: 5000 streamed, 5000 unstreamed
+        e.ledger().set_sequence_number(150);
+        
+        // Withdraw some funds
+        client.withdraw(&stream_id, &2000);
+        assert_eq!(token_client.balance(&recipient), 2000);
+        
+        // Self-destruct
+        client.pause();
+        client.self_destruct();
+        
+        // Recipient should get: available balance (5000 - 2000 = 3000)
+        assert_eq!(token_client.balance(&recipient), 5000);
+        
+        // Sender should get: unstreamed amount (5000)
+        assert_eq!(token_client.balance(&sender), 50000 - 10000 + 5000);
+        
+        // Total accounting: 
+        // Initial: sender 50000
+        // After self-destruct: recipient 5000 + sender 45000 = 50000 ✓
+    }
 }
