@@ -21,24 +21,26 @@ pub fn should_liquidate(
         return false;
     }
 
-    let collateral_value = calculate_total_collateral_value(e, &position.collaterals);
+    let oracle: Address = e.storage().instance().get(&DataKey::Oracle).unwrap();
+    let collateral_value = calculate_total_collateral_value(e, &position.collaterals, oracle);
     let debt_value = position.debt; // Assuming 1:1 with USD
 
     let ratio = (collateral_value * 10000) / debt_value;
     ratio < liquidation_threshold as i128
 }
 
-/// Calculate total collateral value across all tokens
+/// Calculate total collateral value across all tokens.
+/// Optimized to receive oracle address as parameter to avoid redundant storage reads.
 pub fn calculate_total_collateral_value(
     e: &Env,
     collaterals: &Map<Address, i128>,
+    oracle: Address,
 ) -> i128 {
-    let oracle: Address = e.storage().instance().get(&DataKey::Oracle).unwrap();
     let mut total = 0i128;
 
     for (token, amount) in collaterals.iter() {
         let price = crate::oracle::get_price(e, &oracle, &token);
-        total += (amount * price) / 1_0000000;
+        total = total.wrapping_add((amount * price) / 1_0000000);
     }
 
     total
@@ -74,9 +76,10 @@ pub fn distribute_seized_collateral(
     collaterals: &Map<Address, i128>,
     debt_to_cover: i128,
 ) -> Map<Address, i128> {
-    let mut seized = Map::new(e);
-    let total_value = calculate_total_collateral_value(e, collaterals);
     let oracle: Address = e.storage().instance().get(&DataKey::Oracle).unwrap();
+    let total_value = calculate_total_collateral_value(e, collaterals, oracle.clone());
+
+    let mut seized = Map::new(e);
 
     for (token, amount) in collaterals.iter() {
         let price = crate::oracle::get_price(e, &oracle, &token);
