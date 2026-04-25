@@ -6,7 +6,7 @@
 #![no_std]
 
 use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env};
-use soromint_lifecycle::{require_not_paused, is_paused as lifecycle_is_paused, pause as lifecycle_pause, unpause as lifecycle_unpause};
+use soromint_lifecycle::{require_not_paused, is_paused as lifecycle_is_paused, pause as lifecycle_pause, unpause as lifecycle_unpause, require_admin_auth};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -69,8 +69,7 @@ pub struct StreamingPayments;
             panic!("must be paused before self-destruct");
         }
         
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
-        admin.require_auth();
+        let admin = require_admin_auth(&e);
         
         let next_id: u64 = e.storage().instance().get(&DataKey::NextStreamId).unwrap_or(0);
         
@@ -111,11 +110,10 @@ pub struct StreamingPayments;
     /// Requires the stored admin to authenticate.
     ///
     /// # Panics
-    /// Panics if contract is destroyed.
+    /// Panics if contract is destroyed or caller is not admin.
     pub fn pause(e: Env) {
         require_not_destroyed(&e);
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
-        admin.require_auth();
+        let admin = require_admin_auth(&e);
         lifecycle_pause(e, admin);
     }
 
@@ -125,11 +123,10 @@ pub struct StreamingPayments;
     /// Requires the stored admin to authenticate.
     ///
     /// # Panics
-    /// Panics if contract is destroyed.
+    /// Panics if contract is destroyed or caller is not admin.
     pub fn unpause(e: Env) {
         require_not_destroyed(&e);
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
-        admin.require_auth();
+        let admin = require_admin_auth(&e);
         lifecycle_unpause(e, admin);
     }
     

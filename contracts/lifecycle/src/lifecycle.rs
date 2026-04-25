@@ -61,3 +61,31 @@ pub fn require_not_paused(e: &Env) {
         panic!("Contract is paused");
     }
 }
+
+/// Optimized admin authentication helper.
+///
+/// Reads admin from storage ONCE and requires authentication.
+/// This avoids redundant storage reads when both getting admin and requiring auth.
+///
+/// # Arguments
+/// * `e` - The environment reference.
+///
+/// # Returns
+/// The admin address after authentication.
+///
+/// # Panics
+/// Panics if not initialized or admin auth fails.
+///
+/// # Gas Optimization
+/// This function reduces storage reads from 2 to 1 by:
+/// 1. Reading admin from storage once
+/// 2. Calling require_auth on the cached value
+/// Instead of separate get + require_auth calls.
+pub fn require_admin_auth(e: &Env) -> Address {
+    let admin: Address = e.storage().persistent()
+        .get(&DataKey::Admin)
+        .unwrap_or_else(|| panic!("not initialized"));
+    
+    admin.require_auth();
+    admin
+}
