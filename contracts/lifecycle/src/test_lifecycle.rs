@@ -88,3 +88,18 @@ fn test_events_emitted() {
     assert_eq!(t0, SYS_PAUSE);
     assert_eq!(val, admin);
 }
+
+#[test]
+#[should_panic(expected = "only admin can pause")]
+fn test_non_admin_cannot_pause() {
+    let e = Env::default();
+    e.mock_all_auths();
+
+    let contract_id = e.register(LifecycleTestContract, ());
+    let client = LifecycleTestContractClient::new(&e, &contract_id);
+    let admin = Address::generate(&e);
+    let non_admin = Address::generate(&e);
+
+    // Only admin should be able to pause
+    client.do_pause(&non_admin); // should panic
+}

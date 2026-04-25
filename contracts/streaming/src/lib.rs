@@ -536,6 +536,31 @@ mod test {
     }
 
     #[test]
+    #[should_panic(expected = "Contract is paused")]
+    fn test_paused_blocks_extend_stream() {
+        let e = Env::default();
+        e.mock_all_auths();
+        
+        let admin = Address::generate(&e);
+        let sender = Address::generate(&e);
+        let recipient = Address::generate(&e);
+        
+        let (token_addr, _, token_admin) = create_token_contract(&e, &admin);
+        token_admin.mint(&sender, &20000);
+        
+        let contract_id = e.register(StreamingPayments, ());
+        let client = StreamingPaymentsClient::new(&e, &contract_id);
+        client.initialize(&admin);
+        
+        e.ledger().set_sequence_number(100);
+        let stream_id = client.create_stream(&sender, &recipient, &token_addr, &1000, &100, &200);
+        
+        client.pause();
+        // extend_stream should panic because contract is paused
+        client.extend_stream(&stream_id, &500);
+    }
+
+    #[test]
     fn test_extend_stream() {
         let e = Env::default();
         e.mock_all_auths();
