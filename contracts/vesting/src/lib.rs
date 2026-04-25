@@ -164,15 +164,47 @@ impl Vesting {
         let beneficiary: Address = e.storage().instance().get(&DataKey::Beneficiary).unwrap();
         beneficiary.require_auth();
 
-        let claimable = Self::claimable_amount(&e);
+        // Read claimed and kind once to avoid redundant storage reads.
+        let claimed: i128 = e.storage().instance().get(&DataKey::Claimed).unwrap();
+        let kind: VestingKind = e.storage().instance().get(&DataKey::Kind).unwrap();
+
+        let claimable = match kind {
+            VestingKind::Linear => {
+                let total: i128 = e.storage().instance().get(&DataKey::TotalAmount).unwrap();
+                let start: u64 = e.storage().instance().get(&DataKey::Start).unwrap();
+                let end: u64 = e.storage().instance().get(&DataKey::End).unwrap();
+                let now = e.ledger().timestamp();
+                if now <= start {
+                    0
+                } else {
+                    let elapsed = (now.min(end) - start) as i128;
+                    let duration = (end - start) as i128;
+                    let vested = total * elapsed / duration;
+                    (vested - claimed).max(0)
+                }
+            }
+            VestingKind::Milestone => {
+                let ms: Vec<Milestone> = e
+                    .storage()
+                    .persistent()
+                    .get(&DataKey::Milestones)
+                    .unwrap();
+                let mut unlocked: i128 = 0;
+                for m in ms.iter() {
+                    if m.released {
+                        unlocked += m.amount;
+                    }
+                }
+                (unlocked - claimed).max(0)
+            }
+        };
+
         if claimable == 0 {
             panic!("nothing to claim");
         }
 
-        let claimed: i128 = e.storage().instance().get(&DataKey::Claimed).unwrap();
-        e.storage()
-            .instance()
-            .set(&DataKey::Claimed, &(claimed + claimable));
+        let new_claimed = claimed + claimable;
+        e.storage().instance().set(&DataKey::Claimed, &new_claimed);
 
         let tok: Address = e.storage().instance().get(&DataKey::Token).unwrap();
         token::Client::new(&e, &tok).transfer(
