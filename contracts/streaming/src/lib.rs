@@ -652,6 +652,123 @@ mod test {
     }
 
     #[test]
+    fn test_extend_stream_multiple_times() {
+        let e = Env::default();
+        e.mock_all_auths();
+        
+        let admin = Address::generate(&e);
+        let sender = Address::generate(&e);
+        let recipient = Address::generate(&e);
+        
+        let (token_addr, token_client, token_admin) = create_token_contract(&e, &admin);
+        token_admin.mint(&sender, &30000);
+        
+        let contract_id = e.register(StreamingPayments, ());
+        let client = StreamingPaymentsClient::new(&e, &contract_id);
+        client.initialize(&admin);
+        
+        e.ledger().set_sequence_number(100);
+        // Create stream: 1000 tokens over 100 ledgers (rate=10/ledger)
+        let stream_id = client.create_stream(&sender, &recipient, &token_addr, &1000, &100, &200);
+        
+        // First extension: add 500 tokens (50 ledgers)
+        e.ledger().set_sequence_number(150);
+        client.extend_stream(&stream_id, &500);
+        let stream = client.get_stream(&stream_id);
+        assert_eq!(stream.stop_ledger, 250);
+        
+        // Second extension: add 300 tokens (30 ledgers)
+        client.extend_stream(&stream_id, &300);
+        let stream = client.get_stream(&stream_id);
+        assert_eq!(stream.stop_ledger, 280);
+        
+        // Third extension: add 200 tokens (20 ledgers)
+        client.extend_stream(&stream_id, &200);
+        let stream = client.get_stream(&stream_id);
+        assert_eq!(stream.stop_ledger, 300);
+        
+        // Verify total deposited: 1000 + 500 + 300 + 200 = 2000
+        // At ledger 150: streamed = (150-100)*10 = 500
+        let balance = client.balance_of(&stream_id);
+        assert_eq!(balance, 1500); // 500 streamed + 1000 from extensions
+    }
+
+    #[test]
+    fn test_extend_stream_preserves_withdrawn_amount() {
+        let e = Env::default();
+        e.mock_all_auths();
+        
+        let admin = Address::generate(&e);
+        let sender = Address::generate(&e);
+        let recipient = Address::generate(&e);
+        
+        let (token_addr, token_client, token_admin) = create_token_contract(&e, &admin);
+        token_admin.mint(&sender, &20000);
+        
+        let contract_id = e.register(StreamingPayments, ());
+        let client = StreamingPaymentsClient::new(&e, &contract_id);
+        client.initialize(&admin);
+        
+        e.ledger().set_sequence_number(100);
+        let stream_id = client.create_stream(&sender, &recipient, &token_addr, &1000, &100, &200);
+        
+        // Move to ledger 150 and withdraw some funds
+        e.ledger().set_sequence_number(150);
+        client.withdraw(&stream_id, &300);
+        assert_eq!(token_client.balance(&recipient), 300);
+        
+        // Extend the stream
+        client.extend_stream(&stream_id, &500);
+        
+        // Verify withdrawn amount is preserved
+        let stream = client.get_stream(&stream_id);
+        assert_eq!(stream.withdrawn, 300);
+        
+        // Balance should account for withdrawn amount
+        let balance = client.balance_of(&stream_id);
+        // Streamed at 150: 500, withdrawn: 300, available: 200
+        // Plus extension: 500 (not yet streamed)
+        // Total available: 200 + 500 = 700? No, balance_of calculates streamed - withdrawn
+        // After extension, stop_ledger is 250, but at ledger 150 still only 500 streamed
+        assert_eq!(balance, 200); // 500 streamed - 300 withdrawn
+    }
+
+    #[test]
+    fn test_extend_stream_with_large_amounts() {
+        let e = Env::default();
+        e.mock_all_auths();
+        
+        let admin = Address::generate(&e);
+        let sender = Address::generate(&e);
+        let recipient = Address::generate(&e);
+        
+        let (token_addr, token_client, token_admin) = create_token_contract(&e, &admin);
+        // Mint large amount
+        token_admin.mint(&sender, &1000000);
+        
+        let contract_id = e.register(StreamingPayments, ());
+        let client = StreamingPaymentsClient::new(&e, &contract_id);
+        client.initialize(&admin);
+        
+        e.ledger().set_sequence_number(100);
+        // Create large stream: 100000 tokens over 1000 ledgers (rate=100/ledger)
+        let stream_id = client.create_stream(&sender, &recipient, &token_addr, &100000, &100, &1100);
+        
+        // Extend by large amount: 50000 tokens (500 ledgers)
+        e.ledger().set_sequence_number(600);
+        client.extend_stream(&stream_id, &50000);
+        
+        let stream = client.get_stream(&stream_id);
+        assert_eq!(stream.stop_ledger, 1600);
+        assert_eq!(stream.rate_per_ledger, 100);
+        
+        // Verify balance calculation with large numbers
+        // At ledger 600: streamed = (600-100)*100 = 50000
+        let balance = client.balance_of(&stream_id);
+        assert_eq!(balance, 50000); // 50000 streamed - 0 withdrawn
+    }
+
+    #[test]
     fn test_self_destruct() {
         let e = Env::default();
         e.mock_all_auths();
