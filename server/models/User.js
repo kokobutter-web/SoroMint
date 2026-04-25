@@ -163,9 +163,9 @@ const UserSchema = new mongoose.Schema({
 /**
  * @notice Ensure at least one authentication method is present and generate referral code
  */
-UserSchema.pre('save', async function (next) {
+UserSchema.pre('save', async function () {
   if (!this.publicKey && !this.googleId && !this.githubId) {
-    return next(new Error('At least one authentication method (Stellar, Google, or GitHub) is required.'));
+    throw new Error('At least one authentication method (Stellar, Google, or GitHub) is required.');
   }
 
   // Generate a unique referral code if not present
@@ -179,8 +179,6 @@ UserSchema.pre('save', async function (next) {
     }
     this.referralCode = code;
   }
-
-  next();
 });
 
 /**
