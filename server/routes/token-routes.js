@@ -12,6 +12,7 @@ const {
   validateSearch,
 } = require('../validators/token-validator');
 const { dispatch } = require('../services/webhook-service');
+const { getTokenMetadata } = require('../services/stellar-service');
 const { getCacheService } = require('../services/cache-service');
 const { getEnv } = require('../config/env-config');
 
@@ -99,6 +100,95 @@ const createTokenRouter = ({
   deployRateLimiter = tokenDeploymentRateLimiter,
 } = {}) => {
   const router = express.Router();
+
+  /**
+   * @route GET /api/v1/tokens
+   * @description Get all registered tokens (dynamic registry)
+   */
+  router.get(
+    '/v1/tokens',
+    authenticate,
+    validatePagination,
+    asyncHandler(async (req, res) => {
+      const { page = 1, limit = 20 } = req.query;
+      const skip = (page - 1) * limit;
+
+      const [tokens, totalCount] = await Promise.all([
+        Token.find().sort({ createdAt: -1 }).skip(skip).limit(limit),
+        Token.countDocuments(),
+      ]);
+
+      res.json({
+        success: true,
+        data: tokens,
+        metadata: {
+          totalCount,
+          page: Number(page),
+          totalPages: Math.ceil(totalCount / limit),
+          limit: Number(limit),
+        },
+      });
+    })
+  );
+
+  /**
+   * @route GET /api/v1/tokens/:address
+   * @description Fetch token metadata from DB or chain (and cache it)
+   */
+  router.get(
+    '/v1/tokens/:address',
+    authenticate,
+    asyncHandler(async (req, res) => {
+      const { address } = req.params;
+
+      // 1. Check DB first
+      let token = await Token.findOne({ contractId: address });
+
+      if (token) {
+        return res.json({ success: true, data: token, source: 'db' });
+      }
+
+      // 2. Not in DB, fetch from chain
+      try {
+        logger.info('Fetching token metadata from chain', {
+          correlationId: req.correlationId,
+          contractId: address,
+        });
+
+        const metadata = await getTokenMetadata(address);
+
+        // 3. Register/Cache in DB
+        const newToken = new Token({
+          contractId: address,
+          name: metadata.name,
+          symbol: metadata.symbol,
+          decimals: metadata.decimals,
+          ownerPublicKey: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', // Placeholder for unknown owner
+          description: 'Fetched from chain and registered in registry',
+        });
+
+        await newToken.save();
+
+        logger.info('Token registered successfully via dynamic fetch', {
+          correlationId: req.correlationId,
+          contractId: address,
+        });
+
+        return res.json({ success: true, data: newToken, source: 'chain' });
+      } catch (error) {
+        logger.error('Failed to fetch metadata from chain', {
+          correlationId: req.correlationId,
+          address,
+          error: error.message,
+        });
+        throw new AppError(
+          'Could not fetch token metadata from chain. Ensure the contract ID is a valid Soroban token.',
+          404,
+          'FETCH_FAILED'
+        );
+      }
+    })
+  );
 
   /**
    * @route GET /api/tokens/:owner

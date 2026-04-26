@@ -8,6 +8,7 @@ const {
   Address,
   Contract,
   nativeToScVal,
+  scValToNative,
   xdr,
 } = require('@stellar/stellar-sdk');
 const { getEnv } = require('../config/env-config');
@@ -337,6 +338,56 @@ const submitNftBatchOperations = async (nfts, contractId, sourcePublicKey) => {
   };
 };
 
+/**
+ * @title getTokenMetadata
+ * @notice Fetches name, symbol, and decimals from a Soroban token contract.
+ * @dev Uses simulation to perform multiple read-only calls in a single RPC request.
+ * @param {string} contractId - The contract ID of the token.
+ * @returns {Promise<Object>} Metadata containing name, symbol, and decimals.
+ */
+const getTokenMetadata = async (contractId) => {
+  const server = getRpcServer();
+  const env = getEnv();
+  const contract = new Contract(contractId);
+
+  // We use a dummy address for simulation as it doesn't require signing
+  const dummyAddress = new Address(
+    'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
+  );
+
+  const tx = new TransactionBuilder(
+    {
+      sequenceNumber: () => '1',
+      incrementSequenceNumber: () => {},
+    },
+    {
+      fee: '100',
+      networkPassphrase: env.NETWORK_PASSPHRASE,
+    }
+  )
+    .addOperation(contract.call('name'))
+    .addOperation(contract.call('symbol'))
+    .addOperation(contract.call('decimals'))
+    .setTimeout(30)
+    .build();
+
+  const simulation = await server.execute((s) => s.simulateTransaction(tx));
+
+  if (rpc.Api.isSimulationError(simulation)) {
+    throw new Error(`Simulation failed for ${contractId}: ${simulation.error}`);
+  }
+
+  if (!simulation.results || simulation.results.length < 3) {
+    throw new Error(`Insufficient metadata returned for ${contractId}`);
+  }
+
+  return {
+    name: scValToNative(simulation.results[0].retval),
+    symbol: scValToNative(simulation.results[1].retval),
+    decimals: scValToNative(simulation.results[2].retval),
+  };
+};
+
 module.exports = {
   getRpcServer,
   wrapAsset,
@@ -344,4 +395,5 @@ module.exports = {
   FailoverRpcServer,
   submitBatchOperations,
   submitNftBatchOperations,
+  getTokenMetadata,
 };
