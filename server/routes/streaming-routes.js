@@ -1,5 +1,7 @@
 const express = require('express');
 const StreamingService = require('../services/streaming-service');
+const { body, param, validationResult } = require('express-validator');
+const { getCacheService } = require('../services/cache-service');
 const Stream = require('../models/Stream');
 const { body, param, query, validationResult } = require('express-validator');
 const { authenticate } = require('../middleware/auth');
@@ -207,6 +209,10 @@ router.post(
         amount
       );
 
+      // Invalidate balance cache on withdrawal
+      const cacheService = getCacheService();
+      await cacheService.delete(`stream:balance:${streamId}`);
+
       res.json({ success: true, txHash: result.hash });
     } catch (error) {
       next(error);
@@ -231,6 +237,10 @@ router.delete(
         req.sourceKeypair,
         streamId
       );
+
+      // Invalidate balance cache on cancellation
+      const cacheService = getCacheService();
+      await cacheService.delete(`stream:balance:${streamId}`);
 
       res.json({ success: true, txHash: result.hash });
     } catch (error) {
@@ -279,6 +289,18 @@ router.get(
         process.env.NETWORK_PASSPHRASE
       );
 
+      const cacheService = getCacheService();
+      const cacheKey = `stream:balance:${streamId}`;
+
+      const balance = await cacheService.getOrSet(
+        cacheKey,
+        async () => {
+          return await service.getStreamBalance(
+            process.env.STREAMING_CONTRACT_ID,
+            streamId
+          );
+        },
+        { ttl: 5 }
       const balance = await service.getStreamBalance(
         process.env.STREAMING_CONTRACT_ID,
         streamId
